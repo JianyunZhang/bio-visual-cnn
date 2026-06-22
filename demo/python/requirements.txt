@@ -1,0 +1,7 @@
+# 生物视觉 CNN 演示 · Python 版依赖
+# 核心（必需）
+numpy>=1.21
+matplotlib>=3.5
+
+# 可选：仅在使用 --image 上传图片 或 --animate 生成 GIF 时需要
+Pillow>=9.0

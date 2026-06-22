@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生物视觉启发的 CNN 卷积演示 · Bio-Inspired CNN Demo</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#1a2028; --panel2:#222b36; --ink:#e6edf3; --dim:#8b98a5;
+    --accent:#4fd1c5; --warm:#f6ad55; --line:#2d3748; --on:#38b2ac; --hi:#fbbf24;
+    --blue:#3b82f6; --red:#ef4444;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Segoe UI",system-ui,sans-serif;
+    font-size:14px; line-height:1.5;
+  }
+  header{
+    padding:14px 22px; background:linear-gradient(90deg,#13202a,#1c2a36);
+    border-bottom:1px solid var(--line);
+  }
+  header h1{margin:0; font-size:19px; letter-spacing:.5px;}
+  header h1 small{color:var(--accent); font-weight:400; font-size:13px; margin-left:8px;}
+  header p{margin:4px 0 0; color:var(--dim); font-size:12.5px;}
+  .layout{display:flex; gap:14px; padding:14px; align-items:flex-start;}
+  .main{flex:1; min-width:0;}
+  .side{width:328px; flex-shrink:0;}
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:12px;}
+  .panel h2{margin:0 0 10px; font-size:13px; color:var(--accent); text-transform:uppercase; letter-spacing:.6px;}
+  .stage{display:flex; flex-wrap:wrap; gap:14px; justify-content:center;}
+  .canvas-card{background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:10px; text-align:center;}
+  .canvas-card .cap{font-size:12px; color:var(--dim); margin-top:6px; min-height:32px;}
+  .canvas-card .cap b{color:var(--ink);}
+  canvas{background:#0a0e13; border-radius:4px; display:block; image-rendering:pixelated;}
+  .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;}
+  .row label{color:var(--dim); font-size:12px; min-width:64px;}
+  select, input[type=number], input[type=text]{
+    background:#0d141b; color:var(--ink); border:1px solid var(--line); border-radius:5px;
+    padding:5px 7px; font-size:13px; font-family:inherit;
+  }
+  select:focus, input:focus{outline:1px solid var(--accent); border-color:var(--accent);}
+  input[type=number]{width:54px; padding:4px 5px; text-align:center;}
+  input[type=range]{accent-color:var(--accent); width:120px;}
+  button{
+    background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:6px;
+    padding:6px 12px; font-size:13px; cursor:pointer; font-family:inherit; transition:.12s;
+  }
+  button:hover{border-color:var(--accent); color:var(--accent);}
+  button.primary{background:var(--on); color:#06231f; border-color:var(--on); font-weight:600;}
+  button.primary:hover{filter:brightness(1.1); color:#06231f;}
+  button.warn{background:var(--warm); color:#3a2400; border-color:var(--warm); font-weight:600;}
+  button:disabled{opacity:.4; cursor:not-allowed;}
+  .toggle{display:inline-flex; align-items:center; gap:5px; cursor:pointer; font-size:12.5px; color:var(--dim);}
+  .toggle input{accent-color:var(--accent);}
+  .weight-grid{display:grid; gap:3px; margin:6px 0; justify-content:start;}
+  .weight-grid input{width:46px; height:30px; padding:0; font-size:12.5px;}
+  .scale-note{font-size:11px; color:var(--dim);}
+  .readout{
+    background:#0a0f15; border:1px solid var(--line); border-radius:6px; padding:9px 11px;
+    font-family:"Cascadia Code",Consolas,monospace; font-size:12px; color:var(--warm);
+    min-height:48px; word-break:break-all;
+  }
+  .readout .k{color:var(--dim);}
+  .readout .pos{color:var(--accent);}
+  .map-row{
+    display:grid; grid-template-columns:1fr 1fr; gap:4px 8px; padding:7px 8px; border-radius:6px;
+    border:1px solid transparent; margin-bottom:4px; font-size:12px; transition:.15s; opacity:.5;
+  }
+  .map-row.active{background:#16323a; border-color:var(--accent); opacity:1;}
+  .map-row .bio{color:var(--warm);}
+  .map-row .cnn{color:var(--accent);}
+  .map-row.active .bio{color:#ffd98a;}
+  .map-row.active .cnn{color:#7ee8e0;}
+  .hint{font-size:11.5px; color:var(--dim); margin-top:6px;}
+  footer{padding:10px 22px; color:var(--dim); font-size:11.5px; border-top:1px solid var(--line); text-align:center;}
+  .badge{display:inline-block; background:#16323a; color:var(--accent); padding:1px 7px; border-radius:10px; font-size:11px; margin-left:6px;}
+  code{background:#0d141b; padding:1px 5px; border-radius:3px; color:var(--warm); font-size:12px;}
+  @media(max-width:980px){ .layout{flex-direction:column;} .side{width:auto;} }
+
+  /* ===== 视觉通路 banner ===== */
+  .pathway{margin:0; padding:11px 16px; background:linear-gradient(90deg,#0f1a22,#152733); border-bottom:1px solid var(--line); overflow-x:auto;}
+  .pathway .ptitle{font-size:12px;color:var(--accent);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;}
+  .pathway .flow{display:flex;align-items:stretch;gap:5px;min-width:max-content;}
+  .pnode{flex:1;min-width:118px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;position:relative;transition:.15s;}
+  .pnode .name{font-size:13px;font-weight:600;color:var(--ink);}
+  .pnode .name small{color:var(--accent);font-weight:400;font-size:11px;display:block;margin-top:1px;}
+  .pnode .bio{font-size:11px;color:var(--warm);margin-top:5px;}
+  .pnode .cnn{font-size:11px;color:var(--dim);margin-top:2px;}
+  .pnode.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 14px rgba(79,209,197,.22);background:#16323a;}
+  .pnode.cur .cnn{color:#7ee8e0;}
+  .pnode .tag{position:absolute;top:-8px;right:8px;background:var(--accent);color:#06231f;font-size:10px;padding:1px 7px;border-radius:8px;font-weight:600;}
+  .parrow{display:flex;align-items:center;color:var(--dim);font-size:18px;flex:0 0 auto;}
+
+  /* ===== V1 滤波器组 ===== */
+  .bank{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px;}
+  .bank-col{flex:1;min-width:150px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center;}
+  .bank-col .ang{font-size:13px;font-weight:600;color:var(--accent);}
+  .bank-col .ang small{color:var(--dim);font-weight:400;font-size:11px;}
+  .bank-col canvas{margin:4px auto;background:#0a0e13;border-radius:4px;image-rendering:pixelated;display:block;}
+  .bank-col .slab{font-size:10.5px;color:var(--dim);margin:7px 0 2px;letter-spacing:.3px;}
+  .bank-ctrl{display:flex;gap:18px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>生物视觉启发的卷积神经网络演示 <small>Bio-Inspired CNN Convolution Demo</small></h1>
+  <p>视网膜 → LGN → V1 简单/复杂细胞  &nbsp;⇄&nbsp;  输入矩阵 · 滑动感受野(卷积核) · 点积 · ReLU · 池化</p>
+</header>
+
+<!-- ========== 视觉通路 Visual Pathway 总览（retina → … → IT） ========== -->
+<div class="pathway">
+  <div class="ptitle">视觉通路 Visual Pathway · 信息逐级抽象（边缘 → 轮廓 → 形状 → 物体）</div>
+  <div class="flow">
+    <div class="pnode" title="感光细胞光电转换 + 双极/水平细胞的中心-周边拮抗（对比度增强）">
+      <div class="name">视网膜<small>Retina</small></div>
+      <div class="bio">感光 · 对比度</div><div class="cnn">输入矩阵</div>
+    </div>
+    <div class="parrow">→</div>
+    <div class="pnode" title="中继 + 强 divisive normalization / 对比度增益控制">
+      <div class="name">外膝体<small>LGN</small></div>
+      <div class="bio">中继 · 归一化</div><div class="cnn">归一化层</div>
+    </div>
+    <div class="parrow">→</div>
+    <div class="pnode cur" title="朝向选择简单细胞(Gabor样感受野) + 复杂细胞(池化) —— 即下方卷积+ReLU+池化 演示所在">
+      <div class="tag">当前演示</div>
+      <div class="name">初级皮层<small>V1</small></div>
+      <div class="bio">朝向边缘 · 简单/复杂细胞</div><div class="cnn">卷积 + ReLU + 池化</div>
+    </div>
+    <div class="parrow">→</div>
+    <div class="pnode" title="轮廓整合、纹理、figure-ground（长程水平连接）">
+      <div class="name">V2<small>V2</small></div>
+      <div class="bio">轮廓 · 纹理整合</div><div class="cnn">深卷积层</div>
+    </div>
+    <div class="parrow">→</div>
+    <div class="pnode" title="中等复杂度的形状特征">
+      <div class="name">V4<small>V4</small></div>
+      <div class="bio">形状</div><div class="cnn">深卷积层</div>
+    </div>
+    <div class="parrow">→</div>
+    <div class="pnode" title="物体识别（需训练权重；本演示不计算此级）">
+      <div class="name">下颞叶<small>IT</small></div>
+      <div class="bio">物体识别</div><div class="cnn">分类头</div>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- ========== 主舞台 ========== -->
+  <div class="main">
+
+    <div class="panel">
+      <h2>① 输入图像 / Input Image</h2>
+      <div class="row">
+        <label>样本刺激</label>
+        <select id="stimulus">
+          <option value="circle">圆形 Circle</option>
+          <option value="bars0">水平光棒 Bars 0°</option>
+          <option value="bars45">斜光棒 Bars 45°</option>
+          <option value="bars90">垂直光棒 Bars 90°</option>
+          <option value="bars135">斜光棒 Bars 135°</option>
+          <option value="gradient">径向梯度 Gradient</option>
+          <option value="grid">网格 Grid</option>
+          <option value="golden">★ 黄金校验例 Golden (5×5)</option>
+        </select>
+        <label>尺寸</label>
+        <select id="imgSize">
+          <option>16</option><option selected>32</option><option>48</option>
+          <option>64</option><option>96</option><option>128</option><option>192</option><option>256</option>
+        </select>
+        <span style="flex:1"></span>
+        <label style="min-width:auto">或上传</label>
+        <input type="file" id="fileInput" accept="image/*">
+      </div>
+      <div class="hint" id="imgInfo">提示：上传任意图片会自动转灰度并降采样到所选尺寸（工作分辨率上限 256px）。</div>
+    </div>
+
+    <div class="panel">
+      <h2>② 卷积核 / Kernel &nbsp;<span class="badge" id="presetBadge">预设</span></h2>
+      <div class="row">
+        <label>核尺寸</label>
+        <select id="kernelSize"><option value="3">3 × 3</option><option value="4">4 × 4</option></select>
+        <label>预设</label>
+        <select id="preset" style="min-width:210px"></select>
+        <span class="scale-note" id="scaleNote"></span>
+      </div>
+      <div id="weightGrid" class="weight-grid"></div>
+      <div class="row">
+        <label>偏置 b</label>
+        <input type="range" id="bias" min="-10" max="10" step="0.5" value="0">
+        <input type="number" id="biasNum" min="-10" max="10" step="0.5" value="0">
+      </div>
+      <div class="hint">生物学：感受野内像素与核权重的点积 <code>Σ(w·x)+b</code> = 树突的<b>空间总和</b>；同一核扫全图 = <b>权值共享</b>（同一种朝向柱平铺全视野）。</div>
+    </div>
+
+    <div class="panel">
+      <h2>③ 卷积选项 / Convolution Options</h2>
+      <div class="row">
+        <label>步长 stride</label>
+        <select id="stride"><option>1</option><option>2</option><option>3</option></select>
+        <label>填充 padding</label>
+        <select id="padding">
+          <option value="valid">valid 无填充（输出缩小）</option>
+          <option value="same">same 同尺寸（TF/Keras 零填充）</option>
+        </select>
+      </div>
+      <div class="row">
+        <label class="toggle"><input type="checkbox" id="relu"> ReLU 激活 = 放电阈值 (f(x)=max(0,x))</label>
+        <label class="toggle"><input type="checkbox" id="maxpool"> 最大池化 = 复杂细胞 (2×2)</label>
+      </div>
+      <div class="hint">深度学习约定用<b>互相关</b>（核不做 180° 翻转）；特征图配色：负→蓝、零→白、正→红（零中心发散色图）。</div>
+    </div>
+
+    <div class="panel">
+      <h2>④ 运行 / Run — 滑动感受野</h2>
+      <div class="row">
+        <button class="primary" id="btnStep">⏭ 单步 Step</button>
+        <button class="warn" id="btnRun">▶ 动画 Run</button>
+        <button id="btnStop">⏸ 停止</button>
+        <button id="btnInstant">⚡ 瞬时 Instant</button>
+        <button id="btnReset">↺ 重置 Reset</button>
+        <label style="margin-left:auto">速度</label>
+        <input type="range" id="speed" min="2" max="200" value="40">
+      </div>
+      <div class="readout" id="readout"><span class="k">点击「单步」或「动画」开始滑动感受野……</span></div>
+    </div>
+
+    <div class="stage">
+      <div class="canvas-card">
+        <canvas id="cInput" width="340" height="340"></canvas>
+        <div class="cap"><b>输入图 + 感受野窗口</b><br>Input & sliding receptive field</div>
+      </div>
+      <div class="canvas-card">
+        <canvas id="cKernel" width="300" height="300"></canvas>
+        <div class="cap"><b>卷积核权重</b><br>Kernel weights (heatmap)</div>
+      </div>
+      <div class="canvas-card">
+        <canvas id="cOutput" width="340" height="340"></canvas>
+        <div class="cap"><b>输出特征图</b><br>Feature map (filled step-by-step)</div>
+      </div>
+      <div class="canvas-card" id="pooledCard" style="display:none">
+        <canvas id="cPooled" width="300" height="300"></canvas>
+        <div class="cap"><b>池化（复杂细胞）</b><br>Pooled (complex cell)</div>
+      </div>
+    </div>
+
+    <!-- ========== ⑤ V1 朝向柱滤波器组 / Orientation Filter Bank ========== -->
+    <div class="panel">
+      <h2>⑤ V1 朝向柱滤波器组 / V1 Orientation Filter Bank</h2>
+      <div class="bank-ctrl">
+        <label class="toggle"><input type="checkbox" id="bankRelu" checked> ReLU（简单细胞半波整流 = 放电阈值）</label>
+        <label class="toggle"><input type="checkbox" id="bankPool" checked> 2×2 最大池化（复杂细胞 · 位置不变性）</label>
+        <span class="hint" style="margin-left:auto">用同一张输入同时跑 4 个朝向核 = 一个 V1「超柱 / Hypercolumn」</span>
+      </div>
+      <div class="bank" id="v1bank"></div>
+    </div>
+  </div>
+
+  <!-- ========== 侧栏：生物↔CNN 映射 ========== -->
+  <div class="side">
+    <div class="panel">
+      <h2>生物视觉 ⇄ CNN 映射</h2>
+      <div id="mapping"></div>
+      <div class="hint" style="margin-top:8px">随你的操作，对应的生物学概念会高亮点亮。</div>
+    </div>
+
+    <div class="panel">
+      <h2>当前参数 / State</h2>
+      <div id="stateInfo" style="font-size:12px; color:var(--dim); line-height:1.7"></div>
+    </div>
+
+    <div class="panel">
+      <h2>课堂提示 / Tip</h2>
+      <div style="font-size:12px; color:var(--dim)">
+        想验证计算正确性：选 <b>「★ 黄金校验例」</b>样本 + <b>horiz_edge</b> 预设 + valid + 不开 ReLU，
+        输出特征图应显示<br>
+        <code style="font-size:13px"> 3 &nbsp;4 &nbsp;3 / 0 &nbsp;0 &nbsp;0 / -3 -4 -3</code><br>
+        （三端 Python / MATLAB 结果完全一致）。
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  生物视觉启发的 CNN 卷积演示 · 单文件离线运行（零外链）· 配套 <code>demo/python</code> 与 <code>demo/matlab</code> 三端联动
+</footer>
+
+<script>
+"use strict";
+/* ============================================================
+ * 生物视觉启发的 CNN 卷积演示 — 主逻辑（纯原生 JS，零依赖）
+ * 共享规范见 demo/README.md 第四节（三端一致）
+ * ============================================================ */
+
+/* ---------- 黄金校验例（三端冻结）----------
+ * 输入 5×5（外0内1）+ horiz_edge(3×3 Sobel), bias0, stride1, valid, 无ReLU
+ * 期望输出:  3 4 3 / 0 0 0 / -3 -4 -3   （互相关，不翻转）
+ * 若误用真卷积(翻转核) → 上下符号反转。本例专用于抓翻转 bug。
+ * -------------------------------------------------------- */
+
+// ---------- 预设卷积核（与 Python / MATLAB 逐字一致）----------
+// concept: 'orientation' | 'center_surround' | 'sum' | 'identity'
+// sizeOnly: 仅 3×3 提供（切到 4×4 时禁用）
+const PRESETS = {
+  identity:            {label:'恒等 Identity',                     concept:'identity',     scale:1,  w3:[[0,0,0],[0,1,0],[0,0,0]],          w4:[[0,0,0,0],[0,1,0,0],[0,0,0,0],[0,0,0,0]]},
+  horiz_edge:          {label:'水平边缘 Horiz edge (V1 0°)',        concept:'orientation',  scale:1,  w3:[[-1,-2,-1],[0,0,0],[1,2,1]],       w4:[[-2,-2,-2,-2],[-1,-1,-1,-1],[1,1,1,1],[2,2,2,2]]},
+  vert_edge:           {label:'垂直边缘 Vert edge (V1 90°)',        concept:'orientation',  scale:1,  w3:[[-1,0,1],[-2,0,2],[-1,0,1]],       w4:[[-2,-1,1,2],[-2,-1,1,2],[-2,-1,1,2],[-2,-1,1,2]]},
+  diag_45_edge:        {label:'45° 对角 Diag 45°',                  concept:'orientation',  scale:1,  w3:[[0,1,2],[-1,0,1],[-2,-1,0]],       w4:[[0,1,2,3],[-1,0,1,2],[-2,-1,0,1],[-3,-2,-1,0]]},
+  diag_135_edge:       {label:'135° 对角 Diag 135°',                concept:'orientation',  scale:1,  w3:[[2,1,0],[1,0,-1],[0,-1,-2]],       w4:[[3,2,1,0],[2,1,0,-1],[1,0,-1,-2],[0,-1,-2,-3]]},
+  center_surround_dog: {label:'中心-周边拮抗 Center-surround (LGN·RGC)', concept:'center_surround', scale:1, w3:[[-1,-1,-1],[-1,8,-1],[-1,-1,-1]], w4:[[-1,-1,-1,-1],[-1,3,3,-1],[-1,3,3,-1],[-1,-1,-1,-1]]},
+  laplacian:           {label:'拉普拉斯 Laplacian',                 concept:'center_surround', scale:1, w3:[[0,1,0],[1,-4,1],[0,1,0]],         w4:null},
+  gabor_45:            {label:'Gabor 朝向 Gabor (V1 调谐)',         concept:'orientation',  scale:1,  w3:[[1,1,1],[1,-2,-1],[1,-1,-2]],      w4:null},
+  box_blur:            {label:'盒式模糊 Box blur',                  concept:'sum',          scale:1/9,w3:[[1,1,1],[1,1,1],[1,1,1]],          w4:[[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]]},
+  sharpen:             {label:'锐化 Sharpen',                       concept:'sum',          scale:1,  w3:[[0,-1,0],[-1,5,-1],[0,-1,0]],      w4:[[0,-1,-1,0],[-1,5,5,-1],[-1,5,5,-1],[0,-1,-1,0]]},
+  emboss:              {label:'浮雕 Emboss',                        concept:'sum',          scale:1,  w3:[[-2,-1,0],[-1,1,1],[0,1,2]],       w4:[[-2,-2,-1,0],[-2,-1,1,1],[-1,1,1,2],[0,1,2,2]]},
+};
+
+// 生物↔CNN 映射面板
+const MAPPING = [
+  {key:'receptors',       bio:'视网膜感光细胞',     cnn:'输入像素矩阵'},
+  {key:'receptive_field', bio:'感受野 (局部连接)',   cnn:'滑动的卷积核窗口'},
+  {key:'orientation',     bio:'V1 简单细胞·朝向选择', cnn:'朝向边缘/Gabor 核'},
+  {key:'center_surround', bio:'中心-周边拮抗 (LGN)', cnn:'中心-周边/拉普拉斯核'},
+  {key:'spatial_summation',bio:'空间总和 (树突求和)', cnn:'加权点积 Σ(w·x)+b'},
+  {key:'weight_sharing',  bio:'权值共享 (朝向柱)',    cnn:'同一核扫过全图'},
+  {key:'relu_threshold',  bio:'动作电位放电阈值',     cnn:'ReLU = max(0,x)'},
+  {key:'complex_cell',    bio:'V1 复杂细胞 (不变性)', cnn:'最大池化 MaxPool'},
+  {key:'ventral_hierarchy',bio:'腹侧流层级 (V1→IT)',  cnn:'堆叠多层卷积'},
+];
+
+// ---------- 全局状态 ----------
+const state = {
+  img:null, W:0, H:0,                  // 灰度图 [0,1]
+  k:3,
+  presetKey:'horiz_edge',
+  kernel:[],                           // 当前 k×k 权重（一维数组）
+  scale:1,
+  bias:0,
+  stride:1,
+  padding:'valid',
+  relu:false,
+  maxpool:false,
+  // 计算结果
+  out:null, outH:0, outW:0,
+  pooled:null, pH:0, pW:0,
+  padded:null, pPadH:0, pPadW:0, pTop:0, pLeft:0,
+  vmax:1,
+  reveal:0,                            // 已揭示的输出格数
+  raf:null, running:false,
+};
+
+// ---------- 工具：色图 ----------
+function grayRGB(v){            // v∈[0,1]
+  const g=Math.max(0,Math.min(255,Math.round(v*255)));
+  return `rgb(${g},${g},${g})`;
+}
+function divergingRGB(v,vmax){  // 零中心：负蓝/零白/正红
+  if(vmax<=1e-9) vmax=1;
+  let t=v/vmax; if(t>1)t=1; if(t<-1)t=-1;
+  let r,g,b;
+  if(t>=0){ r=255; g=b=Math.round(255*(1-t)); }
+  else { const a=-t; r=g=Math.round(255*(1-a)); b=255; }
+  return `rgb(${r},${g},${b})`;
+}
+
+// ---------- 工具：填充尺寸 ----------
+function padAmounts(mode,k){
+  if(mode==='same'){ const top=Math.floor((k-1)/2), bot=Math.ceil((k-1)/2);
+    return {top,bot,left:top,right:bot}; }   // TF/Keras 约定：k=4 → 上1下2
+  return {top:0,bot:0,left:0,right:0};
+}
+
+// ---------- 工具：构建填充后的图像 ----------
+function buildPadded(img,W,H,mode,k){
+  const {top,bot,left,right}=padAmounts(mode,k);
+  const pH=H+top+bot, pW=W+left+right;
+  const padded=new Float32Array(pH*pW);
+  for(let y=0;y<pH;y++)for(let x=0;x<pW;x++){
+    const sy=y-top, sx=x-left;
+    padded[y*pW+x]=(sy>=0&&sy<H&&sx>=0&&sx<W)?img[sy*W+sx]:0;
+  }
+  return {padded,pH,pW,top,left};
+}
+
+// ---------- 卷积引擎（互相关，不翻转）—— 纯函数，主演示与滤波器组共用 ----------
+function convPure(img,W,H,kerArr,k,scale,bias,stride,padding,relu){
+  const {padded,pH,pW,top,left}=buildPadded(img,W,H,padding,k);
+  const outH=Math.floor((pH-k)/stride)+1, outW=Math.floor((pW-k)/stride)+1;
+  const out=new Float32Array(outH*outW); let vmax=1e-9;
+  for(let oy=0;oy<outH;oy++)for(let ox=0;ox<outW;ox++){
+    let acc=0; const by=oy*stride, bx=ox*stride;
+    for(let dy=0;dy<k;dy++)for(let dx=0;dx<k;dx++) acc+=padded[(by+dy)*pW+(bx+dx)]*kerArr[dy*k+dx];
+    acc=acc*scale+bias; if(relu&&acc<0) acc=0;
+    out[oy*outW+ox]=acc; const a=Math.abs(acc); if(a>vmax) vmax=a;
+  }
+  return {out,outH,outW,padded,pH,pW,top,left,vmax};
+}
+function maxpoolPure(out,outH,outW){
+  const ppH=Math.floor(outH/2), ppW=Math.floor(outW/2);
+  const pooled=new Float32Array(ppH*ppW); let pvmax=1e-9;
+  for(let y=0;y<ppH;y++)for(let x=0;x<ppW;x++){
+    let m=-Infinity;
+    for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++){ const v=out[(y*2+dy)*outW+(x*2+dx)]; if(v>m)m=v; }
+    pooled[y*ppW+x]=m; const a=Math.abs(m); if(a>pvmax)pvmax=a;
+  }
+  return {pooled,pH:ppH,pW:ppW,vmax:pvmax};
+}
+// 主演示用：把结果写入 state
+function conv2d(){
+  const r=convPure(state.img,state.W,state.H,state.kernel,state.k,state.scale,state.bias,state.stride,state.padding,state.relu);
+  state.padded=r.padded; state.pPadH=r.pH; state.pPadW=r.pW; state.pTop=r.top; state.pLeft=r.left;
+  state.out=r.out; state.outH=r.outH; state.outW=r.outW; state.vmax=r.vmax;
+  if(state.maxpool){ const p=maxpoolPure(state.out,state.outH,state.outW);
+    state.pooled=p.pooled; state.pH=p.pH; state.pW=p.pW; state.pvmax=p.vmax; }
+}
+
+// ---------- 单格点积（供读数显示）----------
+function dotAt(oy,ox){
+  const k=state.k,s=state.stride,ker=state.kernel,pW=state.pPadW,padded=state.padded;
+  const by=oy*s,bx=ox*s; let acc=0; const xs=[];
+  for(let dy=0;dy<k;dy++)for(let dx=0;dx<k;dx++){
+    const v=padded[(by+dy)*pW+(bx+dx)];
+    acc+=v*ker[dy*k+dx]; xs.push(v);
+  }
+  let res=acc*state.scale+state.bias;
+  const before=res;
+  if(state.relu&&res<0)res=0;
+  return {acc,scaled:acc*state.scale+state.bias,afterRelu:res,xs};
+}
+
+// ---------- 程序化样本刺激（与 Python 同算法）----------
+function makeStimulus(kind,size){
+  if(kind==='golden'){ size=5; }
+  const img=new Float32Array(size*size);
+  const c=(size-1)/2;
+  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+    let v=0;
+    if(kind==='circle'){ const dx=x-c,dy=y-c; v=0.5*(1-Math.min(1,Math.sqrt(dx*dx+dy*dy)/(size*0.42))); }
+    else if(kind==='gradient'){ const dx=x-c,dy=y-c; v=Math.max(0,1-Math.sqrt(dx*dx+dy*dy)/(size*0.7)); }
+    else if(kind==='grid'){ v=(Math.floor(x/(size/8))%2 ^ Math.floor(y/(size/8))%2)?0.85:0.12; }
+    else if(kind==='bars0'||kind==='bars45'||kind==='bars90'||kind==='bars135'){
+      // 朝向 θ 的光棒：调制方向 = θ+90°（垂直于光棒长轴）
+      const ang={bars0:Math.PI/2,bars45:3*Math.PI/4,bars90:Math.PI,bars135:5*Math.PI/4}[kind];
+      const px=(x-c)*Math.cos(ang)+(y-c)*Math.sin(ang);   // 沿调制方向投影
+      const freq=2*Math.PI*3/size;                          // 3 个周期
+      v=0.5+0.5*Math.sin(px*freq);
+    }
+    else if(kind==='golden'){ // 外0内1（3×3 实心方块）
+      v=(x>=1&&x<=3&&y>=1&&y<=3)?1:0;
+    }
+    img[y*size+x]=Math.max(0,Math.min(1,v));
+  }
+  return {img,W:size,H:size};
+}
+
+// ---------- 灰度转换（Rec.601：0.299/0.587/0.114）----------
+function imageDataToGray(imageData,W,H){
+  const d=imageData.data, out=new Float32Array(W*H);
+  for(let i=0;i<W*H;i++){
+    const r=d[i*4],g=d[i*4+1],b=d[i*4+2];
+    out[i]=(0.299*r+0.587*g+0.114*b)/255;
+  }
+  return out;
+}
+
+/* ============================================================
+ *  渲染
+ * ============================================================ */
+const cInput=document.getElementById('cInput').getContext('2d');
+const cKernel=document.getElementById('cKernel').getContext('2d');
+const cOutput=document.getElementById('cOutput').getContext('2d');
+const cPooled=document.getElementById('cPooled').getContext('2d');
+
+function clearCtx(ctx){ const c=ctx.canvas; ctx.fillStyle='#0a0e13'; ctx.fillRect(0,0,c.width,c.height); }
+
+function renderInput(){
+  const ctx=cInput, C=ctx.canvas; clearCtx(ctx);
+  if(!state.img) return;
+  // 显示带填充的网格（same 模式可见 padding）
+  const gridH=state.pPadH, gridW=state.pPadW;
+  const cell=Math.min(C.width/gridW, C.height/gridH);
+  const offX=(C.width-cell*gridW)/2, offY=(C.height-cell*gridH)/2;
+  ctx.save(); ctx.translate(offX,offY);
+  for(let y=0;y<gridH;y++)for(let x=0;x<gridW;x++){
+    const sy=y-state.pTop, sx=x-state.pLeft;
+    const inside=(sy>=0&&sy<state.H&&sx>=0&&sx<state.W);
+    const v=state.padded[y*gridW+x];
+    ctx.fillStyle=grayRGB(v);
+    ctx.fillRect(x*cell,y*cell,Math.ceil(cell),Math.ceil(cell));
+    if(!inside){ // padding 格：画虚线提示
+      ctx.fillStyle='rgba(251,191,36,0.10)'; ctx.fillRect(x*cell,y*cell,Math.ceil(cell),Math.ceil(cell));
+    }
+    if(cell>=13&&inside){
+      ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.font=`${Math.min(12,Math.floor(cell*0.4))}px Consolas,monospace`;
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(v.toFixed(1),x*cell+cell/2,y*cell+cell/2);
+    }
+  }
+  // 当前感受野窗口高亮
+  if(state.reveal>0){
+    const idx=state.reveal-1, ox=idx%state.outW, oy=Math.floor(idx/state.outW);
+    const by=oy*state.stride, bx=ox*state.stride, k=state.k;
+    ctx.strokeStyle='#fbbf24'; ctx.lineWidth=2.5;
+    ctx.strokeRect(bx*cell-1,by*cell-1,k*cell+2,k*cell+2);
+    ctx.fillStyle='rgba(251,191,36,0.14)'; ctx.fillRect(bx*cell,by*cell,k*cell,k*cell);
+  }
+  ctx.restore();
+}
+
+function renderKernel(){
+  const ctx=cKernel, C=ctx.canvas; clearCtx(ctx);
+  const k=state.k; const vmax=Math.max(1e-9,...state.kernel.map(Math.abs));
+  const cell=Math.min(C.width/k,C.height/k)*0.92;
+  const offX=(C.width-cell*k)/2, offY=(C.height-cell*k)/2;
+  ctx.save(); ctx.translate(offX,offY);
+  for(let y=0;y<k;y++)for(let x=0;x<k;x++){
+    const w=state.kernel[y*k+x];
+    ctx.fillStyle=divergingRGB(w,vmax);
+    ctx.fillRect(x*cell,y*cell,cell-2,cell-2);
+    ctx.fillStyle='#0b0f14'; ctx.font=`bold ${Math.floor(cell*0.4)}px Consolas,monospace`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(fmtNum(w),x*cell+cell/2-1,y*cell+cell/2-1);
+  }
+  ctx.restore();
+}
+
+function renderOutput(){
+  const ctx=cOutput, C=ctx.canvas; clearCtx(ctx);
+  if(!state.out) return;
+  const cell=Math.min(C.width/state.outW,C.height/state.outH);
+  const offX=(C.width-cell*state.outW)/2, offY=(C.height-cell*state.outH)/2;
+  ctx.save(); ctx.translate(offX,offY);
+  for(let oy=0;oy<state.outH;oy++)for(let ox=0;ox<state.outW;ox++){
+    const idx=oy*state.outW+ox;
+    if(idx>=state.reveal){ // 未揭示：暗格
+      ctx.fillStyle='#151c25'; ctx.fillRect(ox*cell,oy*cell,Math.ceil(cell),Math.ceil(cell));
+      continue;
+    }
+    const v=state.out[idx];
+    ctx.fillStyle=divergingRGB(v,state.vmax);
+    ctx.fillRect(ox*cell,oy*cell,Math.ceil(cell),Math.ceil(cell));
+    if(cell>=16){
+      ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.font=`${Math.min(12,Math.floor(cell*0.36))}px Consolas,monospace`;
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(fmtNum(v),ox*cell+cell/2,oy*cell+cell/2);
+    }
+  }
+  // 当前格高亮边
+  if(state.reveal>0){
+    const idx=state.reveal-1, ox=idx%state.outW, oy=Math.floor(idx/state.outW);
+    ctx.strokeStyle='#fbbf24'; ctx.lineWidth=2.5;
+    ctx.strokeRect(ox*cell-1,oy*cell-1,cell+2,cell+2);
+  }
+  ctx.restore();
+}
+
+function renderPooled(){
+  const card=document.getElementById('pooledCard');
+  if(!state.maxpool||!state.pooled){ card.style.display='none'; return; }
+  card.style.display='';
+  const ctx=cPooled, C=ctx.canvas; clearCtx(ctx);
+  const cell=Math.min(C.width/state.pW,C.height/state.pH);
+  const offX=(C.width-cell*state.pW)/2, offY=(C.height-cell*state.pH)/2;
+  ctx.save(); ctx.translate(offX,offY);
+  for(let y=0;y<state.pH;y++)for(let x=0;x<state.pW;x++){
+    const v=state.pooled[y*state.pW+x];
+    ctx.fillStyle=divergingRGB(v,state.pvmax);
+    ctx.fillRect(x*cell,y*cell,Math.ceil(cell),Math.ceil(cell));
+  }
+  ctx.restore();
+}
+
+function fmtNum(v){ return (Math.abs(v)<10? v.toFixed(2) : v.toFixed(1)); }
+
+function renderAll(){ renderInput(); renderKernel(); renderOutput(); renderPooled(); updateMapping(); updateStateInfo(); }
+
+/* ============================================================
+ *  V1 朝向柱滤波器组（与主演示独立：固定 4 个朝向核 + same 卷积）
+ * ============================================================ */
+const BANK=[
+  {key:'horiz_edge',    ang:'0°',   cn:'水平 Horizontal'},
+  {key:'diag_45_edge',  ang:'45°',  cn:'对角 45°'},
+  {key:'vert_edge',     ang:'90°',  cn:'垂直 Vertical'},
+  {key:'diag_135_edge', ang:'135°', cn:'对角 135°'},
+];
+const bankState={relu:true, pool:true, cols:[]};
+
+function buildV1BankDOM(){
+  const root=document.getElementById('v1bank'); root.innerHTML='';
+  BANK.forEach((b,i)=>{
+    const col=document.createElement('div'); col.className='bank-col';
+    col.innerHTML=
+      `<div class="ang">${b.ang} <small>${b.cn}</small></div>`+
+      `<canvas id="bk_k${i}" width="84" height="84"></canvas>`+
+      `<div class="slab">简单细胞 Simple cell<br>(卷积 + ReLU)</div>`+
+      `<canvas id="bk_f${i}" width="156" height="156"></canvas>`+
+      `<div class="slab bk_pool">复杂细胞 Complex cell<br>(2×2 最大池化)</div>`+
+      `<canvas id="bk_p${i}" width="156" height="156" class="bk_pool"></canvas>`;
+    root.appendChild(col);
+  });
+}
+function computeV1Bank(){
+  if(!state.img){ bankState.cols=[]; return; }
+  bankState.cols=BANK.map(b=>{
+    const p=PRESETS[b.key]; const ker=p.w3.flat();
+    const r=convPure(state.img,state.W,state.H,ker,3,p.scale,0,1,'same',bankState.relu);
+    const pooled = bankState.pool ? maxpoolPure(r.out,r.outH,r.outW) : null;
+    return {ker, out:r.out, outH:r.outH, outW:r.outW, vmax:r.vmax, pooled};
+  });
+}
+function drawKernelMini(ctx,ker,k){
+  const C=ctx.canvas; clearCtx(ctx);
+  const vmax=Math.max(1e-9,...ker.map(Math.abs));
+  const cell=Math.min(C.width,C.height)/k*0.9; const off=(C.width-cell*k)/2;
+  ctx.save(); ctx.translate(off,off);
+  for(let y=0;y<k;y++)for(let x=0;x<k;x++){
+    const w=ker[y*k+x];
+    ctx.fillStyle=divergingRGB(w,vmax); ctx.fillRect(x*cell,y*cell,cell-2,cell-2);
+    ctx.fillStyle='#0b0f14'; ctx.font=`bold ${Math.floor(cell*0.3)}px Consolas,monospace`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(fmtNum(w),x*cell+cell/2,y*cell+cell/2);
+  }
+  ctx.restore();
+}
+function drawFeatMap(ctx,data,H,W,vmax){
+  const C=ctx.canvas; clearCtx(ctx);
+  if(!data||!H) return;
+  const cell=Math.min(C.width/W,C.height/H);
+  const offX=(C.width-cell*W)/2, offY=(C.height-cell*H)/2;
+  ctx.save(); ctx.translate(offX,offY);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    ctx.fillStyle=divergingRGB(data[y*W+x],vmax);
+    ctx.fillRect(x*cell,y*cell,Math.ceil(cell),Math.ceil(cell));
+  }
+  ctx.restore();
+}
+function renderV1Bank(){
+  document.querySelectorAll('.bk_pool').forEach(e=>e.style.display=bankState.pool?'':'none');
+  bankState.cols.forEach((c,i)=>{
+    drawKernelMini(document.getElementById('bk_k'+i).getContext('2d'), c.ker, 3);
+    drawFeatMap(document.getElementById('bk_f'+i).getContext('2d'), c.out, c.outH, c.outW, c.vmax);
+    if(bankState.pool){
+      drawFeatMap(document.getElementById('bk_p'+i).getContext('2d'),
+        c.pooled.pooled, c.pooled.pH, c.pooled.pW, c.pooled.vmax);
+    }
+  });
+}
+
+/* ============================================================
+ *  映射面板 & 状态信息
+ * ============================================================ */
+function buildMappingPanel(){
+  const el=document.getElementById('mapping'); el.innerHTML='';
+  MAPPING.forEach(m=>{
+    const d=document.createElement('div'); d.className='map-row'; d.dataset.key=m.key;
+    d.innerHTML=`<span class="bio">${m.bio}</span><span class="cnn">${m.cnn}</span>`;
+    el.appendChild(d);
+  });
+}
+function activeConcepts(){
+  const s=new Set(['receptors','ventral_hierarchy']);
+  s.add('receptive_field');                 // 核始终在
+  const p=PRESETS[state.presetKey];
+  if(p.concept==='orientation') s.add('orientation');
+  if(p.concept==='center_surround') s.add('center_surround');
+  if(state.reveal>0){ s.add('spatial_summation'); s.add('weight_sharing'); }
+  if(state.relu) s.add('relu_threshold');
+  if(state.maxpool) s.add('complex_cell');
+  return s;
+}
+function updateMapping(){
+  const s=activeConcepts();
+  document.querySelectorAll('.map-row').forEach(r=>{
+    r.classList.toggle('active', s.has(r.dataset.key));
+  });
+}
+function updateStateInfo(){
+  const el=document.getElementById('stateInfo');
+  const p=PRESETS[state.presetKey];
+  el.innerHTML=
+    `输入：${state.W}×${state.H}（${state.padding==='same'?'含填充 '+state.pPadW+'×'+state.pPadH:'无填充'}）<br>`+
+    `核：${state.k}×${state.k} · ${p.label.split(' ')[0]} · scale ${fmtNum(state.scale)}<br>`+
+    `stride ${state.stride} · bias ${fmtNum(state.bias)} · ReLU ${state.relu?'开':'关'}<br>`+
+    `输出特征图：${state.outW}×${state.outH} · 已揭示 ${state.reveal}/${state.outW*state.outH}<br>`+
+    `特征值范围：[−${fmtNum(state.vmax)}, +${fmtNum(state.vmax)}]`;
+}
+
+/* ============================================================
+ *  读数显示
+ * ============================================================ */
+function updateReadout(){
+  const el=document.getElementById('readout');
+  if(state.reveal<=0){ el.innerHTML='<span class="k">点击「单步」或「动画」开始滑动感受野……</span>'; return; }
+  const idx=state.reveal-1, ox=idx%state.outW, oy=Math.floor(idx/state.outW);
+  const d=dotAt(oy,ox);
+  const xs=d.xs.map(v=>v.toFixed(1)).join(',');
+  const ws=state.kernel.map(v=>fmtNum(v)).join(',');
+  el.innerHTML=
+    `<span class="k">输出格 (行${oy},列${ox})</span> <span class="pos">→ 感受野 x=[${xs}]</span><br>`+
+    `<span class="k">点积</span> Σ(w·x)=${fmtNum(d.acc)} <span class="k">×scale ${fmtNum(state.scale)}</span>`+
+    ` <span class="k">+bias ${fmtNum(state.bias)}</span> = <b>${fmtNum(d.scaled)}</b>`+
+    (state.relu?` <span class="k">ReLU→</span> <b style="color:#7ee8e0">${fmtNum(d.afterRelu)}</b>`:'');
+}
+
+/* ============================================================
+ *  UI 装配
+ * ============================================================ */
+function populatePresets(){
+  const sel=document.getElementById('preset'); sel.innerHTML='';
+  Object.entries(PRESETS).forEach(([key,p])=>{
+    const ok = state.k===3 ? true : (p.w4!==null);
+    const opt=document.createElement('option');
+    opt.value=key; opt.textContent=p.label + (ok?'':'（仅 3×3）');
+    if(!ok) opt.disabled=true;
+    sel.appendChild(opt);
+  });
+  // 若当前预设在新尺寸下不可用，回退到 identity
+  if(PRESETS[state.presetKey].w4===null && state.k===4){ state.presetKey='identity'; }
+  sel.value=state.presetKey;
+}
+function buildWeightGrid(){
+  const el=document.getElementById('weightGrid'); el.innerHTML='';
+  const k=state.k; el.style.gridTemplateColumns=`repeat(${k}, 46px)`;
+  for(let y=0;y<k;y++)for(let x=0;x<k;x++){
+    const inp=document.createElement('input'); inp.type='number'; inp.step='0.1'; inp.value=fmtNum(state.kernel[y*k+x]);
+    inp.dataset.y=y; inp.dataset.x=x;
+    inp.addEventListener('input',()=>{
+      const v=parseFloat(inp.value); if(!isNaN(v)){ state.kernel[y*k+x]=v; recompute(); }
+    });
+    el.appendChild(inp);
+  }
+}
+function loadPreset(key){
+  state.presetKey=key; const p=PRESETS[key];
+  const w = state.k===3? p.w3 : p.w4;
+  if(!w){ /* 切到 4×4 但预设无 4×4：由调用方先换尺寸 */ return; }
+  state.kernel=w.flat(); state.scale=p.scale;
+  document.getElementById('scaleNote').textContent = p.scale!==1? `（缩放 ×${fmtNum(p.scale)}）`:'';
+  document.getElementById('presetBadge').textContent=key;
+  buildWeightGrid(); recompute();
+}
+function loadStimulus(kind,size){
+  const r=makeStimulus(kind,size);
+  state.img=r.img; state.W=r.W; state.H=r.H;
+  document.getElementById('imgInfo').textContent =
+    kind==='golden'? '★ 黄金校验例：5×5（外0内1）。选 horiz_edge+valid+无ReLU 验证输出 3 4 3/0 0 0/−3 −4 −3。'
+                    :`样本「${kind}」 ${r.W}×${r.H}（灰度 [0,1]）。`;
+  recompute();
+  computeV1Bank(); renderV1Bank();
+}
+
+function recompute(){
+  if(!state.img) return;
+  conv2d();
+  state.reveal=0; stopAnim();
+  renderAll(); updateReadout();
+}
+
+/* ============================================================
+ *  运行控制
+ * ============================================================ */
+function stopAnim(){ if(state.raf){ cancelAnimationFrame(state.raf); state.raf=null; } state.running=false; }
+
+function doStep(){
+  if(state.reveal<state.outW*state.outH){ state.reveal++; renderInput(); renderOutput(); renderPooled(); updateMapping(); updateStateInfo(); updateReadout(); }
+}
+function doInstant(){ state.reveal=state.outW*state.outH; stopAnim(); renderAll(); updateReadout(); }
+function doReset(){ state.reveal=0; stopAnim(); renderAll(); updateReadout(); }
+function doRun(){
+  stopAnim(); const total=state.outW*state.outH;
+  if(state.reveal>=total) state.reveal=0;
+  state.running=true;
+  let last=0;
+  const msPerStep=()=>{ const v=+document.getElementById('speed').value; return 1000/v; };
+  function loop(t){
+    if(!state.running) return;
+    if(t-last >= msPerStep()){
+      last=t;
+      if(state.reveal<total){ state.reveal++; renderInput(); renderOutput(); renderPooled(); updateMapping(); updateStateInfo(); updateReadout(); }
+      else { stopAnim(); return; }
+    }
+    state.raf=requestAnimationFrame(loop);
+  }
+  state.raf=requestAnimationFrame(loop);
+}
+
+/* ============================================================
+ *  事件绑定
+ * ============================================================ */
+document.getElementById('stimulus').addEventListener('change',e=>loadStimulus(e.target.value,+document.getElementById('imgSize').value));
+document.getElementById('imgSize').addEventListener('change',e=>{
+  const kind=document.getElementById('stimulus').value;
+  if(kind!=='golden') loadStimulus(kind,+e.target.value);
+});
+document.getElementById('fileInput').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const maxDim=256, size=+document.getElementById('imgSize').value;
+      const scale=Math.min(1, maxDim/Math.max(img.width,img.height));
+      let tw=Math.max(1,Math.round(img.width*scale)), th=Math.max(1,Math.round(img.height*scale));
+      const oc=document.createElement('canvas'); oc.width=tw; oc.height=th;
+      const octx=oc.getContext('2d'); octx.drawImage(img,0,0,tw,th);
+      const id=octx.getImageData(0,0,tw,th);
+      state.img=imageDataToGray(id,tw,th); state.W=tw; state.H=th;
+      document.getElementById('imgInfo').textContent=`已上传图片 → 灰度 ${tw}×${th}（Rec.601，已降采样）`;
+      recompute();
+      computeV1Bank(); renderV1Bank();
+    };
+    img.src=r.result;
+  };
+  r.readAsDataURL(f);
+});
+document.getElementById('kernelSize').addEventListener('change',e=>{
+  state.k=+e.target.value; populatePresets(); loadPreset(state.presetKey);
+});
+document.getElementById('preset').addEventListener('change',e=>loadPreset(e.target.value));
+document.getElementById('bias').addEventListener('input',e=>{
+  state.bias=+e.target.value; document.getElementById('biasNum').value=state.bias; recompute();
+});
+document.getElementById('biasNum').addEventListener('input',e=>{
+  state.bias=+e.target.value; document.getElementById('bias').value=state.bias; recompute();
+});
+document.getElementById('stride').addEventListener('change',e=>{ state.stride=+e.target.value; recompute(); });
+document.getElementById('padding').addEventListener('change',e=>{ state.padding=e.target.value; recompute(); });
+document.getElementById('relu').addEventListener('change',e=>{ state.relu=e.target.checked; recompute(); });
+document.getElementById('maxpool').addEventListener('change',e=>{ state.maxpool=e.target.checked; recompute(); });
+document.getElementById('btnStep').addEventListener('click',doStep);
+document.getElementById('btnRun').addEventListener('click',doRun);
+document.getElementById('btnStop').addEventListener('click',stopAnim);
+document.getElementById('btnInstant').addEventListener('click',doInstant);
+document.getElementById('btnReset').addEventListener('click',doReset);
+document.getElementById('bankRelu').addEventListener('change',e=>{ bankState.relu=e.target.checked; computeV1Bank(); renderV1Bank(); });
+document.getElementById('bankPool').addEventListener('change',e=>{ bankState.pool=e.target.checked; computeV1Bank(); renderV1Bank(); });
+
+/* ============================================================
+ *  初始化
+ * ============================================================ */
+buildMappingPanel();
+populatePresets();
+buildV1BankDOM();
+loadPreset('horiz_edge');
+loadStimulus('circle',32);
+</script>
+</body>
+</html>
